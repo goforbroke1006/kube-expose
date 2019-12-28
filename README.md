@@ -20,3 +20,5 @@ services:
       - 18080:8080
 
 ```
+
+where **data-aggregator-svc**  and **ws-broadcaster-svc** are "name"-labels for services from k8s deployment files.
