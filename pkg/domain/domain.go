@@ -1,9 +1,15 @@
 package domain
 
 type ComposeConfig struct {
-	Services map[string]Service `yaml:"services"`
+	Namespaces []Namespace `yaml:"namespaces"`
 }
 
-type Service struct {
+type Namespace struct {
+	Name      string              `yaml:"name"`
+	Resources map[string]Resource `yaml:"resources"`
+}
+
+type Resource struct {
+	Type  string   `yaml:"type"`
 	Ports []string `yaml:"ports"`
 }

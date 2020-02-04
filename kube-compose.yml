@@ -1,0 +1,23 @@
+namespaces:
+
+  - name: kubernetes-dashboard
+    resources:
+
+      kubernetes-dashboard:
+        type: pod
+        ports:
+          - 8443:8443
+
+  - name: monitoring
+    resources:
+
+      prometheus-operator-grafana:
+        type: service
+        ports:
+          - 3000:80
+
+      prometheus-operator-prometheus:
+        type: service
+        ports:
+          - 19090:9090
+

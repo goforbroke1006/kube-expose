@@ -11,9 +11,10 @@ import (
 	"sync"
 	"syscall"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/goforbroke1006/kube-expose/pkg/domain"
 )
-import "gopkg.in/yaml.v2"
 
 func main() {
 	data, err := ioutil.ReadFile("./kube-compose.yml")
@@ -33,39 +34,49 @@ func main() {
 
 	app := "/bin/bash"
 
-	for name, svc := range cc.Services {
-		go func(svc domain.Service) {
-			// TODO:
+	for _, namespace := range cc.Namespaces {
+		for name, resourceDescr := range namespace.Resources {
+			go func(namespaceName string, resName string, rsc domain.Resource) {
+				// TODO:
 
-			var outbuf, errbuf bytes.Buffer
+				var outbuf, errbuf bytes.Buffer
 
-			getPodNameCmd := fmt.Sprintf("kubectl get pods -l name=%s | grep '%s' | awk '{print $1}'", name, name)
-			cmd := exec.Command(app, "-c", getPodNameCmd)
-			cmd.Stdout = &outbuf
-			cmd.Stderr = &errbuf
-			err = cmd.Run()
-			if err != nil {
-				panic(err)
-			}
-			podName := strings.TrimSpace(outbuf.String())
-
-			for _, portForward := range svc.Ports {
-				forwardPortCmd := fmt.Sprintf("kubectl port-forward %s %s", podName, portForward)
-				cmd = exec.Command(app, "-c", forwardPortCmd)
+				getResourceNameCmd := fmt.Sprintf("kubectl get %s -n %s | grep -m1 %s | awk '{print $1}'", rsc.Type, namespaceName, resName)
+				cmd := exec.Command(app, "-c", getResourceNameCmd)
 				cmd.Stdout = &outbuf
 				cmd.Stderr = &errbuf
-				err = cmd.Start()
-				if err != nil {
-					panic(err)
+
+				if err := cmd.Run(); err != nil {
+					fmt.Println("ERROR:", err.Error())
+					return
 				}
 
-				fmt.Println("	", podName, "up", "ports="+portForward, fmt.Sprintf("pid=%d", cmd.Process.Pid))
+				resourceID := strings.TrimSpace(outbuf.String())
 
-				pidsMx.Lock()
-				pids = append(pids, cmd.Process.Pid)
-				pidsMx.Unlock()
-			}
-		}(svc)
+				for _, pp := range rsc.Ports {
+					go func(namespaceName string, resType, portsPair string) {
+						forwardPortCmd := fmt.Sprintf("kubectl port-forward -n %s %s/%s %s", namespaceName, resType, resourceID, portsPair)
+						cmd := exec.Command(app, "-c", forwardPortCmd)
+						cmd.Stdout = &outbuf
+						cmd.Stderr = &errbuf
+
+						fmt.Println("$", forwardPortCmd)
+
+						if err = cmd.Start(); err != nil {
+							fmt.Println("ERROR:", err.Error())
+							return
+						}
+
+						fmt.Println("	", resourceID, "up", "ports="+pp, fmt.Sprintf("pid=%d", cmd.Process.Pid))
+
+						pidsMx.Lock()
+						pids = append(pids, cmd.Process.Pid)
+						pidsMx.Unlock()
+					}(namespaceName, rsc.Type, pp)
+
+				}
+			}(namespace.Name, name, resourceDescr)
+		}
 	}
 
 	done := make(chan bool)
@@ -81,7 +92,9 @@ func main() {
 	<-done
 
 	for _, pid := range pids {
-		cmd := exec.Command(app, "-c", fmt.Sprintf("kill %d", pid))
-		_ = cmd.Start()
+		go func(pid int) {
+			cmd := exec.Command(app, "-c", fmt.Sprintf("kill %d", pid))
+			_ = cmd.Start()
+		}(pid)
 	}
 }

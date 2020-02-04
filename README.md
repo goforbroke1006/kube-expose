@@ -9,15 +9,28 @@ Draft version.
 ## Config sample
 
 ```yaml
-services:
+namespaces:
 
-  data-aggregator-svc:
-    ports:
-      - 9292:8080
+  - name: default
+    resources:
+      
+      data-aggregator-svc:
+        type: service
+        ports:
+          - 9292:8080
+      
+      ws-broadcaster-svc:
+        type: service
+        ports:
+          - 18080:8080
 
-  ws-broadcaster-svc:
-    ports:
-      - 18080:8080
+  - name: kubernetes-dashboard
+    resources:
+      
+      kubernetes-dashboard:
+        type: pod
+        ports:
+          - 8443:8443
 
 ```
 
